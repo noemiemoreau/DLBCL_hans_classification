@@ -34,30 +34,18 @@ def train_step(train_loader, model, criterion, optimizer):
     for i, batch in enumerate(train_loader):
         img_tensor, target, filename = batch[0].cuda(), batch[1].cuda(), batch[2]
         targets.append(target)
-        #print(target)
         output = model(img_tensor)
-        #print(output)
         if isinstance(output, (tuple, list)):
             output = output[0]
-        # print(output)
         optimizer.zero_grad()
         loss = criterion(output, target)
-        #print(loss)
         loss.backward()
         optimizer.step()
         training_epoch_loss += loss.item()
         predicted_classes = torch.max(output, dim=1)[1]
-        #print(predicted_classes)
         outputs.append(predicted_classes)
         acc += (predicted_classes == target).sum()
         tests += len(predicted_classes)
-        #raise RuntimeError('debug')
-        # if "/projects/ag-bozek/sugliano/dlbcl/data/interim/resnet_imgs/004_for_resnet.npy" in filename:
-        #     print(filename)
-        #     print(target)
-        #     print(output)
-        #     print(loss)
-        #     print(predicted_classes)
 
     true_vals = torch.tensor([k for t in targets for k in t]).cpu().numpy()#torch.tensor([t.cpu().numpy()[k] for t in targets for k in t])
     predicts = torch.tensor([k for t in outputs for k in t]).cpu().numpy()#torch.tensor([t.cpu().numpy()[k] for t in outputs for k in t])
@@ -84,28 +72,16 @@ def validate_step(val_loader, model, criterion):
     with torch.no_grad():
         for i, batch in enumerate(val_loader):
             img_tensor, target, filename = batch[0].cuda(), batch[1].cuda(), batch[2]
-            # print("filename: ", filename)
             targets.append(target)
-            # print("target: ", target)
             output = model(img_tensor)
-            # print("output: ", output)
             if isinstance(output, (tuple, list)):
                 output = output[0]
             loss = criterion(output, target)
-            # print("loss: ", loss)
             val_epoch_loss += loss.item()
             predicted_classes = torch.max(output, dim = 1)[1]
-            # print("predicted_class: ", predicted_classes)
             outputs.append(predicted_classes)
             acc += (predicted_classes == target).sum()
             tests += len(predicted_classes)
-            # raise RuntimeError('debug')
-            # if "/projects/ag-bozek/sugliano/dlbcl/data/interim/resnet_imgs/004_for_resnet.npy" in filename:
-            #     print(filename)
-            #     print(target)
-            #     print(output)
-            #     print(loss)
-            #     print(predicted_classes)
 
     true_vals = torch.tensor([k for t in targets for k in t]).cpu().numpy()#torch.tensor([t.cpu().numpy()[k] for t in targets for k in t])
     predicts = torch.tensor([k for t in outputs for k in t]).cpu().numpy()#torch.tensor([t.cpu().numpy()[k] for t in outputs for k in t])
@@ -169,20 +145,6 @@ def main_worker(args):
 
     os.makedirs(os.path.join(args.checkpoints_dir,run.id))
 
-    # if torch.cuda.is_available():
-    #     torch.cuda.set_device(proc_index)
-    # else:
-    #     raise RuntimeError('CUDA not available!')
-
-    # if dist.is_nccl_available():
-    #     dist.init_process_group(
-    #         backend = 'nccl',
-    #         world_size = args.gpus,
-    #         rank = proc_index
-    #     )
-    # else:
-    #     raise RuntimeError('NCCL backend not available!')
-
     if args.task == 'relapse':
         args.num_classes = 2
     elif args.task == 'hans_binary':
@@ -211,51 +173,25 @@ def main_worker(args):
     else:
         raise ValueError('Model should be resnet34')
 
-    # for m in model.modules():
-    #     if isinstance(m, torch.nn.BatchNorm2d):
-    #         m.eval()
-    #         for p in m.parameters():
-    #             p.requires_grad = False
-
-    # model = DistributedDataParallel(model, device_ids=[proc_index], output_device=proc_index)
-
-    #remove this part later
-    # checkpoint = torch.load("checkpoints/ibmv8i45/checkpoint_99.pth.tar")
-    # model.load_state_dict(checkpoint['model'])
-    # mean = [ 60.1976, 120.2014, 103.0581,  76.7479, 145.5347, 112.5264, 144.9628,
-    #      127.3409,  53.1630, 144.0218, 111.1871, 125.4579, 134.6648, 133.0389]
-    # std = [56.2254, 54.2254, 47.3853, 53.8022, 54.0022, 48.1101, 53.4882, 51.5245,
-    #      38.4545, 60.6355, 47.2878, 47.2716, 52.5021, 46.8046]
-    # mean = [ 60.1976, 120.2014, 144.9628]
-    # std = [56.2254, 54.2254, 53.4882]
-
     train_transform = transforms.Compose([
         transforms.CenterCrop(5000),
         transforms.Resize((args.img_size, args.img_size)),
-        # transforms.Normalize(mean, std),
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
-        # transforms.ToTensor(),
     ])
 
     train_df = pd.read_csv(args.train_csv)
     train_dataset = ImageDataset(train_df, fn_col = 'filename', lbl_col = args.task, transform = train_transform, return_filename=True, which_channels = args.channels, data_path=args.data_path, data_suffixe=args.data_suffixe)
-    # if args.weighted_sampler_label == 'None':
-    #     args.weighted_sampler_label = args.task
-    # weights = calculate_weights(torch.tensor(train_df[args.weighted_sampler_label].values))
-    # train_sampler = DistributedWeightedSampler(weights, num_replicas=args.gpus, rank=proc_index, shuffle=True)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.num_workers, pin_memory=True, shuffle=True)
 
     if args.val_csv != 'None':
         val_transform = transforms.Compose([
             transforms.CenterCrop(5000),
             transforms.Resize((args.img_size, args.img_size)),
-            # transforms.Normalize(mean, std),
-            #transforms.ToTensor(),
         ])
+
         val_df = pd.read_csv(args.val_csv)
         val_dataset = ImageDataset(val_df, fn_col = 'filename', lbl_col = args.task, transform = val_transform, return_filename=True, which_channels = args.channels, data_path=args.data_path, data_suffixe=args.data_suffixe)
-        # val_sampler = DistributedSampler(val_dataset, num_replicas=args.gpus, rank=proc_index, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=args.batch_size, num_workers=args.num_workers, pin_memory=True)
     
     optimizer = torch.optim.Adam(model.parameters(), lr = args.learning_rate, weight_decay=args.weight_decay)
@@ -271,11 +207,10 @@ def main_worker(args):
         val_phase_results = {'Loss': '', 'Accuracy' : '', "Balanced_acc": ""}
         if args.val_csv != 'None':
             val_phase_results = validate_step(val_loader, model, criterion)
-            # val_phase_results = train_step(val_loader, model, criterion, optimizer)
             acc = val_phase_results['Accuracy']
             scheduler.step(acc)
 
-        if True:#(proc_index == 0):
+        if True:
             run.log({"loss_train": train_phase_results["Loss"],
                      "acc_train": train_phase_results["Accuracy"],
                      "bal_acc_train": train_phase_results["Balanced_acc"],
@@ -329,7 +264,4 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
     os.makedirs(args.checkpoints_dir, exist_ok = True)
-    # os.environ['MASTER_ADDR'] = args.master_addr
-    # os.environ['MASTER_PORT'] = args.master_port
     main_worker(args=args)
-    # mp.spawn(main_worker, nprocs=args.gpus, args=(args,))
